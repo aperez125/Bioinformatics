@@ -1,0 +1,2 @@
+# abyss on paired end reads. Kmer on quatative unknown 
+abyss-pe name=ecoli k=96 B=2G in='reads1.fa reads2.fa'
