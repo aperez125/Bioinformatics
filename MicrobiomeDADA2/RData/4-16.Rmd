@@ -1,0 +1,93 @@
+---
+title: "MicrobiomeDADA2"
+author: "Ana Perez"
+date: "2024-04-16"
+output: pdf_document
+---
+
+# Load required packages
+```{r}
+library(dada2)
+```
+
+# Load sequences 
+```{r}
+path <- "sequences"
+list.files(path)
+```
+
+# Read in file names
+```{r}
+# fastq filenames have format: SAMPLENAME_R1_001.fastq
+fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
+
+# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+```
+
+# Inspect read quality 
+```{r}
+plotQualityProfile(fnFs[1:2])
+```
+
+# Filter and trim
+```{r}
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+
+names(filtFs) <- sample.names
+
+# quality decreases at 120
+out <- filterAndTrim(fnFs, filtFs, truncLen=c(120),
+              maxN=0, maxEE=c(2), truncQ=2, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+head(out)
+```
+# Learn error rates 
+```{r}
+errF <- learnErrors(filtFs, multithread=TRUE)
+plotErrors(errF, nominalQ=TRUE)
+```
+
+#Sample inference (indentifying number of unique sequences)
+```{r}
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+```
+
+# create sequence table
+```{r}
+seqtab <- makeSequenceTable(dadaFs)
+dim(seqtab)
+
+# Inspect distribution of sequence lengths 
+table(nchar(getSequences(seqtab)))
+```
+
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+```
+
+# track reads through pipeline 
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), rowSums(seqtab.nochim))
+colnames(track) <- c("input", "filtered", "denoisedF","nonchim")
+rownames(track) <- sample.names
+head(track)
+```
+
+# save seqtab.nochim as R file
+```{r}
+save(seqtab.nochim, file="RData/seqtab.nochim.RData")
+```
+
+```{r}
+#Load seqtab.nochim to start here
+load("RData/seqtab.nochim.RData")
+```
+
+# assign taxonomy
+```{r}
+# download silva species database from https://zenodo.org/records/4587955
+```
