@@ -1,0 +1,100 @@
+---
+title: "Microbiome DADA2"
+author: "Ana Perez"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# Load required packages
+```{r}
+library(dada2)
+```
+
+# Load sequences
+```{r}
+path <- "sequences"
+list.files(path)
+```
+
+# Read in file names
+```{r}
+# fastq filenames have format: SAMPLENAME_R1_001.fastq
+fnFs <- sort(list.files(path, pattern="_R1_001.fastq", full.names = TRUE))
+
+# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+```
+
+# Inspect read quality
+```{r}
+plotQualityProfile(fnFs[1:2])
+```
+
+# Filter and trim
+```{r}
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+
+names(filtFs) <- sample.names
+
+# quality decreases at 120
+out <- filterAndTrim(fnFs, filtFs, truncLen=c(120),
+              maxN=0, maxEE=c(2), truncQ=2, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+head(out)
+```
+# Learn error rates
+```{r}
+errF <- learnErrors(filtFs, multithread=TRUE)
+plotErrors(errF, nominalQ=TRUE)
+```
+
+# Sample inference (identifying number of unique sequences)
+```{r}
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+```
+
+# create sequence table
+```{r}
+seqtab <- makeSequenceTable(dadaFs)
+dim(seqtab)
+
+# Inspect distribution of sequence lengths
+table(nchar(getSequences(seqtab)))
+```
+
+# remove chimeras
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+```
+
+# track reads through pipeline
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), rowSums(seqtab.nochim))
+colnames(track) <- c("input", "filtered", "denoisedF", "nonchim")
+rownames(track) <- sample.names
+head(track)
+```
+
+# Save seqtab.nochim as an R file
+```{r}
+save(seqtab.nochim, file="RData/seqtab.nochim.RData")
+```
+
+# Load seqtab.nochim to start here
+```{r}
+load("RData/seqtab.nochim.RData")
+```
+
+# Assign Taxonomy
+```{r}
+# download the Silva species database from https://zenodo.org/records/4587955
+taxa <- assignTaxonomy(seqtab.nochim, "silva_nr99_v138.1_wSpecies_train_set.fa.gz")
+```
+
+# save taxonomy as a file
+```{r}
+save(taxa, file = "RData/taxa.RData")
+```

@@ -1,0 +1,170 @@
+---
+title: "Phyloseq"
+author: "Ana Perez"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# load required packages
+```{r}
+library(ggplot2)
+library(phyloseq)
+library(dplyr)
+library(BiMiCo)
+```
+
+# Load taxa and seqtab.nochim
+```{r}
+load("RData/taxa.RData")
+load("RData/seqtab.nochim.RData")
+```
+
+# import metadata
+```{r}
+metadata<-read.csv("metadata.csv", header=TRUE, row.names = 1)
+```
+
+# create phyloseq object
+```{r}
+#make sure the seqtab.nochim and taxa objects are loaded
+physeq <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+               sample_data(metadata), 
+               tax_table(taxa))
+physeq
+```
+
+# transform sample counts
+```{r}
+# convert from raw to abundance
+physeq <- transform_sample_counts(physeq, function(abund) 1*(abund>0))
+physeq
+```
+
+# Remove the sequence itself and replace with ASV
+```{r}
+dna <- Biostrings::DNAStringSet(taxa_names(physeq))
+names(dna) <- taxa_names(physeq)
+physeq <- merge_phyloseq(physeq, dna)
+taxa_names(physeq) <- paste0("ASV", seq(ntaxa(physeq)))
+physeq
+```
+
+# remove mitochondria and chloroplast matches. remove all non bacterial sequences
+```{r}
+physeq <- physeq %>% subset_taxa( Family!= "Mitochondria" | is.na(Family) & Order!="Chloroplast" | is.na(Order) ) 
+physeq
+```
+
+# remove all non bacterial sequences
+```{r}
+physeq<-rm_nonbac(physeq)
+physeq
+```
+
+# save physeq objects to load later
+```{r}
+save(physeq, file="RData/physeq.RData")
+```
+
+# load physeq objects to start here
+```{r}
+load("RData/physeq.RData")
+```
+
+# simple plot bar graph based on phylum hi
+```{r}
+plot_bar(physeq, fill = "Phylum") + geom_bar(aes(color=Phylum, fill=Phylum),stat="identity", position="fill")
+```
+# Create a barplot of relative abundance 
+```{r}
+# convert to relative abundance 
+physeq_relabund <- transform_sample_counts(physeq, function(x) x / sum(x))
+
+# barplot 
+plot_bar(physeq_relabund, fill = "Phylum") + geom_bar(aes(color=Phylum, fill=Phylum),stat="identity", position="fill") +facet_wrap(~body.site, scales = "free")
+```
+
+# plot alpha diversity based on body site
+```{r}
+plot_richness(physeq, x="body.site", color= "subject", measures=c("Observed","Simpson","Shannon"))
+```
+
+# plot alpha diversity based on reported.antibiotic.usage
+```{r}
+plot_richness(physeq, x="reported.antibiotic.usage", color= "body.site", measures=c("Observed","Simpson","Shannon"))
+```
+
+# plot alpha diversity based on subject
+```{r}
+plot_richness(physeq, x="subject", shape = "body.site", measures=c("Observed","Simpson","Shannon"))
+```
+
+# test for normality 
+```{r}
+alpha <- estimate_richness(physeq, measures=c("Observed", "Simpson", "Shannon"))
+``` 
+# shapiro-wilk
+```{r}
+observed <- shapiro.test(alpha$Observed)
+shannon <- shapiro.test(alpha$Shannon)
+simpson <- shapiro.test(alpha$Simpson)
+
+# print 
+print(observed)
+print(shannon)
+print(simpson)
+```
+
+# create data frames for stastistical analysis 
+```{r}
+# extract sample information from physeq object 
+samples <- sample_data(physeq)
+
+# if samples is a phyloseq sameple_data object, convert it to a data frame 
+if (class(samples) == "sample_data") {
+  samples <- data.frame(sample_data(samples))
+}
+
+# add a column to alpha with sample names 
+alpha$sample <- rownames(alpha)
+
+# merge alpha diversity data and sample data 
+alpha <- merge(alpha, samples, by = "sample")
+```
+
+# perform statistics based on subject 
+```{r}
+# Perfomr t/wilcox tests for each biodiversity index 
+test_observed <- wilcox.test(Observed ~ subject, data = alpha)
+test_simpson <- wilcox.test(Simpson ~ subject, data = alpha)
+test_shannon <- t.test(Shannon ~ subject, data = alpha)
+
+# Printing results 
+print(test_observed)
+print(test_simpson)
+print(test_shannon)
+```
+
+# perform statistics based on reported.antibiotic.usage 
+```{r}
+# Perfomr t/wilcox tests for each biodiversity index 
+test_observed <- wilcox.test(Observed ~ reported.antibiotic.usage, data = alpha)
+test_simpson <- wilcox.test(Simpson ~ reported.antibiotic.usage, data = alpha)
+test_shannon <- t.test(Shannon ~ reported.antibiotic.usage, data = alpha)
+
+# Printing results 
+print(test_observed)
+print(test_simpson)
+print(test_shannon)
+```
+
+# test for body site 
+```{r}
+kruskal.test(Simpson ~ body.site, data=alpha)
+pairwise.wilcox.test(alpha$Simpson, alpha$body.site, p.adjust.method="holm")
+kruskal.test(Observed ~ body.site, data=alpha)
+pairwise.wilcox.test(alpha$Observed, alpha$body.site, p.adjust.method="holm")
+shannonanova <- aov(Shannon ~ body.site, data=alpha)
+summary(shannonanova)
+TukeyHSD(shannonanova)
+```
