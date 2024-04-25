@@ -11,6 +11,7 @@ library(ggplot2)
 library(phyloseq)
 library(dplyr)
 library(BiMiCo)
+library(devtools)
 ```
 
 # Load taxa and seqtab.nochim
@@ -167,4 +168,72 @@ pairwise.wilcox.test(alpha$Observed, alpha$body.site, p.adjust.method="holm")
 shannonanova <- aov(Shannon ~ body.site, data=alpha)
 summary(shannonanova)
 TukeyHSD(shannonanova)
+```
+
+# remove taxa with relative abundance <0.005%
+```{r}
+minTotRelAbun = .00005
+x = taxa_sums(physeq)
+keepTaxa = (x / sum(x)) > minTotRelAbun
+physeqprune = prune_taxa(keepTaxa, physeq)
+physeqprune
+```
+
+# number of shared ASVs body.site (found in 25% or more)
+```{r}
+bodysite=ps_venn(
+  physeqprune,
+  "body.site",
+  fraction = .25,
+  weight = FALSE,
+  relative = TRUE,
+  plot = TRUE
+)
+bodysite
+```
+
+# Bray Curtis Calculation 
+```{r message=FALSE}
+set.seed(777)
+dist = phyloseq::distance(physeqprune, method="bray", weighted=TRUE)
+ordination = ordinate(physeqprune, method="NMDS", distance=dist)
+```
+
+# Bray Curtis Subject Plot
+```{r}
+braysubject=plot_ordination(physeqprune, ordination, color="subject") + 
+  theme_classic() + 
+  theme(strip.background = element_blank()) +
+  stat_ellipse(aes(group=subject))
+braysubject
+```
+
+# Bray Curtis Body Site Plot 
+```{r}
+braybodysite=plot_ordination(physeqprune, ordination, color="body.site") + theme_classic() + theme(strip.background = element_blank()) + stat_ellipse(aes(group=body.site))
+braybodysite
+```
+
+# Bray Curtis Antibiotic Usage Plot
+```{r}
+brayabusage=plot_ordination(physeqprune, ordination, color="reported.antibiotic.usage") + theme_classic() + theme(strip.background = element_blank()) + stat_ellipse(aes(group=reported.antibiotic.usage))
+
+brayabusage
+```
+
+# Bray Curtis Subject Statistics
+```{r}
+adonis2(dist ~ sample_data(physeqprune)$subject)
+```
+
+# Bray Curtis Body Site Stats
+```{r}
+adonis2(dist ~ sample_data(physeqprune)$body.site)
+ps.disper<-betadisper(dist, sample_data(physeqprune)$body.site)
+permutest(ps.disper, pair=TRUE)
+```
+
+# Bray Curtis Antibiotic Usage Statistics
+```{r}
+adonis2(dist ~ sample_data(physeqprune)$reported.antibiotic.usage)
 ```
