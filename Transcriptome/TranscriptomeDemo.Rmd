@@ -1,0 +1,207 @@
+---
+title: "Transcriptome Demo"
+author: "Ana"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# Load required packages 
+```{r message=FALSE}
+library(ballgown)
+library(RColorBrewer)
+library(genefilter)
+library(dplyr)
+library(devtools)
+```
+
+# This code will organize the files into a table with an ids column and one with a stage column 
+```{r}
+pheno_data<-data.frame(ids = c("plank01", "plank02", "biofilm01", "biofilm02"),
+                       stage = c("planktonic", "planktonic", "biofilm", "biofilm"))
+```
+
+# create Ballgown object and check transcript number
+```{r message=FALSE}
+samples.c <- paste('ballgown', pheno_data$ids, sep = '/')
+bg <- ballgown(samples = samples.c, meas='all', pData = pheno_data)
+bg
+```
+
+# This code is filtering the data from the samples given into the bg_filt file, this will also calculta the variance of the data frame
+```{r}
+bg_filt = subset(bg,"rowVars(texpr(bg)) >1",genomesubset=TRUE)
+bg_filt
+```
+
+# create a table of transcripts
+```{r}
+results_transcripts<- stattest(bg_filt, feature = "transcript", covariate = "stage",
+getFC = TRUE, meas = "FPKM")
+results_transcripts<-data.frame(geneNames=geneNames(bg_filt),
+transcriptNames=transcriptNames(bg_filt), results_transcripts)
+```
+
+# choose a transcript to examine more closely (this is a demo, you need to choose another)
+#i chose gene-PA0019
+```{r}
+results_transcripts[results_transcripts$transcriptNames == "gene-PA0019", ]
+```
+## what information are you given about this transcript?
+# this transcript is giving me the id number, fc, pval and qval value based on the transcript i chose. the fc value will indicate how much change in expression this gene will pass experience when change in conditions. the p and q value will tell you the accuracy and significance of the data
+
+# this code is filtering the data from sigdiff by only taking values under 0.05, this makes the data easy to read by returning significant values
+```{r}
+sigdiff <- results_transcripts %>% filter(pval<0.05)
+dim(sigdiff)
+```
+
+# organize the table <by what metrics is the table being organized?>
+##the table is being organized by the highest significance difference based on the p value
+```{r}
+o = order(sigdiff[,"pval"], -abs(sigdiff[,"fc"]), decreasing=FALSE)
+output = sigdiff[o,c("geneNames","transcriptNames", "id","fc","pval","qval")]
+write.table(output, file="SigDiff.txt", sep="\t", row.names=FALSE, quote=FALSE)
+head(output)
+```
+
+# load gene names
+```{r}
+bg_table = texpr(bg_filt, 'all')
+bg_gene_names = unique(bg_table[, 9:10])
+```
+
+# pull out gene expression data and visualize
+```{r}
+gene_expression = as.data.frame(gexpr(bg_filt))
+head(gene_expression)
+```
+
+# <what is this code doing? hint:compare the above output of head(gene_expression) to this output>
+##this code will organize the data frame into the columns of each read. the diffence between the table above and this one is that the table above tell us the gene expression in fragments per kilobase of transcript per million map and this one tells you the gene expression in a broader sense
+```{r}
+colnames(gene_expression) <- c("plank01", "plank02", "biofilm01", "biofilm02")
+head(gene_expression)
+dim(gene_expression)
+```
+
+# load the transcript to gene table and determine the number of transcripts and unique genes
+##there's 6 transcripts but 5 unique genes
+```{r}
+transcript_gene_table = indexes(bg)$t2g
+head(transcript_gene_table)
+length(row.names(transcript_gene_table))
+length(unique(transcript_gene_table[,"g_id"]))
+```
+
+# plot the number of transcripts per gene
+```{r}
+counts=table(transcript_gene_table[,"g_id"])
+c_one = length(which(counts == 1))
+c_more_than_one = length(which(counts > 1))
+c_max = max(counts)
+hist(counts, breaks=50, col="bisque4", xlab="Transcripts per gene",
+main="Distribution of transcript count per gene")
+legend_text = c(paste("Genes with one transcript =", c_one),
+paste("Genes with more than one transcript =", c_more_than_one),
+paste("Max transcripts for single gene = ", c_max))
+legend("topright", legend_text, lty=NULL)
+```
+
+## The amount of transcription of individual genes with an average of the maximum transcription per single gene
+
+# create a plot of how similar the two replicates are for one another. We have two data sets...how can you modify this code in another chunk to create a plot of the other set?
+##i will change the pank01 and 02 to biolfilm files
+```{r}
+x = gene_expression[,"plank01"]
+y = gene_expression[,"plank02"]
+min_nonzero=1
+plot(x=log2(x+min_nonzero), y=log2(y+min_nonzero), pch=16, col="purple", cex=0.25,
+xlab="FPKM (Planktonic, Replicate 1)", ylab="FPKM (Planktonic, Replicate 2)",
+main="Comparison of expression values for a pair of replicates")
+abline(a=0,b=1, col = "hotpink")
+rs=cor(x,y)^2
+legend("topleft", paste("R squared = ", round(rs, digits=3), sep=""), lwd=1, col="black")
+```
+
+```{r}
+x = gene_expression[,"biofilm01"]
+y = gene_expression[,"biofilm02"]
+min_nonzero=1
+plot(x=log2(x+min_nonzero), y=log2(y+min_nonzero), pch=16, col="purple", cex=0.25,
+xlab="FPKM (Biofilm, Replicate 1)", ylab="FPKM (Biofilm, Replicate 2)",
+main="Comparison of expression values for a pair of replicates")
+abline(a=0,b=1, col = "hotpink")
+rs=cor(x,y)^2
+legend("topleft", paste("R squared = ", round(rs, digits=3), sep=""), lwd=1, col="black")
+```
+
+## What does it mean if the two data sets are similar?
+##according to the R value from both data sets, they are pretty similar. and this means that the expression of the genes from the two different bacteria will be the same under the same environment 
+
+# create plot of differential gene expression between the conditions
+```{r}
+results_genes = stattest(bg_filt, feature="gene", covariate="stage", getFC=TRUE, meas="FPKM")
+results_genes = merge(results_genes,bg_gene_names,by.x=c("id"),by.y=c("gene_id"))
+sig=which(results_genes$pval<0.05)
+results_genes[,"de"] = log2(results_genes[,"fc"])
+hist(results_genes[sig,"de"], breaks=50, col="seagreen",
+xlab="log2(Fold change) Planktonic vs Biofilm",
+main="Distribution of differential expression values")
+abline(v=-2, col="black", lwd=2, lty=2)
+abline(v=2, col="black", lwd=2, lty=2)
+legend("topleft", "Fold-change > 4", lwd=2, lty=2)
+```
+
+## interpret the above figure: what this graph is showing is the difference in frequency change in expression values from planktonic vs. biofilm. this tells you the difference in expression for the genes, instead of the similar ones 
+
+# Plot total gene expression highlighting differentially expressed genes
+```{r}
+gene_expression[,"plank"]=apply(gene_expression[,c(1:2)], 1, mean)
+gene_expression[,"biofilm"]=apply(gene_expression[,c(3:4)], 1, mean)
+x=log2(gene_expression[,"plank"]+min_nonzero)
+y=log2(gene_expression[,"biofilm"]+min_nonzero)
+plot(x=x, y=y, pch=16, cex=0.25, xlab="Planktonic FPKM (log2)", ylab="Biofilm FPKM (log2)",
+main="Planktonic vs Biofilm FPKMs")
+abline(a=0, b=1)
+xsig=x[sig]
+ysig=y[sig]
+points(x=xsig, y=ysig, col="magenta", pch=16, cex=0.5)
+legend("topleft", "Significant", col="magenta", pch=16)
+```
+
+# make a table of FPKM values
+```{r}
+fpkm = texpr(bg_filt,meas="FPKM")
+```
+
+# choose a gene to determine individual expression (pick a different number than I did) - I picked 3
+```{r}
+ballgown::transcriptNames(bg_filt)[3]
+ballgown::geneNames(bg_filt)[3]
+```
+# transform to log2
+```{r}
+transformed_fpkm <- log2(fpkm[2, ] + 1)
+```
+
+# make sure values are properly coded as numbers
+```{r}
+numeric_stages <- as.numeric(factor(pheno_data$stage))
+
+jittered_stages <- jitter(numeric_stages)
+```
+
+# plot expression of individual gene
+```{r}
+boxplot(transformed_fpkm ~ pheno_data$stage,
+        main=paste(ballgown::geneNames(bg_filt)[3], ' : ', ballgown::transcriptNames(bg_filt)[3]),
+        xlab="Stage",
+        ylab="log2(FPKM+1)",
+        col=c("lightblue", "salmon"),
+        border="darkblue")
+
+points(transformed_fpkm ~ jittered_stages, 
+       pch=21, col="blue", bg="lightblue", cex=1.2)
+```
+
+## interpret the above figure: this graph will show the difference in expression in the recF gene between the two different groups. we can see overlapping individual data points, which could mean the different environmental conditions. we can overall visualize the distribution of the two groups 

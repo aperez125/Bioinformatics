@@ -1,0 +1,4 @@
+stringtie/plank01.transcripts.gtf
+stringtie/plank02.transcripts.gtf
+stringtie/biofilm02.transcripts.gtf
+stringtie/biofilm01.transcripts.gtf

@@ -1,0 +1,112 @@
+#cd to your Bioinfo folder 
+
+# Create a new environment for transcriptomics
+conda create --name transcriptomics-env
+
+# To activate this environment, use
+conda activate transcriptomics-env
+
+# To deactivate an active environment, use
+conda deactivate
+
+# install the necessary packages
+conda install -c bioconda hisat2
+conda install -c bioconda samtools
+conda install -c bioconda stringtie
+conda install -c bioconda gffcompare
+
+# Download the transcriptome data set and reference genome files (as .fna, .fasta, and .gff) from the link on Canvas. The transcriptome data set is 8 total samples, 2 replicates of planktonically grown P. aeruginosa and 2 replicates of biofilm P. aeruginosa each with a forward (pass 1) and reverse (pass 2) read. The .fna, .fasta, and .gff files should be directly in your folder for transcriptome work. The reads will be in a folder called fastq in your transcriptome folder.
+
+#This code will unzip all the files under the folder "fastq"
+gunzip fastq/*.gz
+
+# Prepare the genome file #hisat2-build <path to genome file FNA> paeru but will modify to:
+hisat2-build paeruginosa.fna paeru
+
+# Align reads to genome and assemble the transcripts #you will need to do these commands for every pair of reads (there are 4 in the tutorial). As an example, this is the command I ran for the plank01 sample.
+
+# this is her example #hisat2 -q -x paeru -1 fastq/plank01_F.fastq -2 fastq/plank01_R.fastq -S plank01.sam
+
+hisat2 -q -x paeru -1 fastq/biofilm01_F.fastq -2 fastq/biofilm01_R.fastq -S biofilm01.sam
+
+hisat2 -q -x paeru -1 fastq/biofilm02_F.fastq -2 fastq/biofilm02_R.fastq -S biofilm02.sam
+
+hisat2 -q -x paeru -1 fastq/plank01_F.fastq -2 fastq/plank01_R.fastq -S plank01.sam
+
+hisat2 -q -x paeru -1 fastq/plank02_F.fastq -2 fastq/plank02_R.fastq -S plank02.sam
+
+# Convert the .sam file to a .bam file. As an example, this is the command I ran for the plank01sample. This .sam file is also large, so you can delete it once you’ve created the .bam file.
+
+#this is her example; samtools view -bS plank01.sam > plank01.bam
+
+samtools view -bS plank01.sam > plank01.bam
+
+samtools view -bS plank02.sam > plank02.bam
+
+samtools view -bS biofilm01.sam > biofilm01.bam
+
+samtools view -bS biofilm02.sam > biomfilm02.bam
+
+# Convert the .bam to a sorted .bam. This compresses the file and sorts the variants for easier discovery. As an example, this is the command I ran for the plank01 sample. 
+
+samtools sort plank01.bam -o plank01.sorted.bam
+
+samtools sort plank02.bam -o plank02.sorted.bam
+
+samtools sort biofilm01.bam -o biofilm01.sorted.bam
+
+samtools sort biofilm02.bam -o biofilm02.sorted.bam
+
+# Reconstruct transcripts for each sample. As an example, this is the command I ran for the plank01 sample. 
+
+stringtie plank01.sorted.bam -G paeruginosa.gff -o stringtie/plank01.transcripts.gtf
+
+stringtie plank02.sorted.bam -G paeruginosa.gff -o stringtie/plank02.transcripts.gtf
+
+stringtie biofilm01.sorted.bam -G paeruginosa.gff -o stringtie/biofilm01.transcripts.gtf
+
+stringtie biofilm02.sorted.bam -G paeruginosa.gff -o stringtie/biofilm02.transcripts.gtf
+
+# Create a file with the names of the files. As an example, this is the command I ran for the plank01 sample, followed by the plank02 sample.  Remember, file 1 gets >. Files 2-4 >>
+
+echo stringtie/plank01.transcripts.gtf > assemblies.txt
+
+echo stringtie/plank02.transcripts.gtf >> assemblies.txt
+
+echo stringtie/biofilm02.transcripts.gtf >> assemblies.txt
+
+echo stringtie/biofilm01.transcripts.gtf >> assemblies.txt
+
+# Verify that assemblies.txt contains all file names #remember the command that lets you view the first contents of a file
+
+head assemblies.txt
+
+# Merge the transcripts
+stringtie --merge -G paeruginosa.gff -o stringtie_merged.gtf assemblies.txt
+
+# Count the number of lines in the merged file
+cat stringtie_merged.gtf | grep -v "^#" | awk '$3=="transcript" {print}' | wc -l
+
+#5735 to the command above 
+
+# Compare assembled transcripts to known transcripts
+gffcompare -r paeruginosa.gff -G -o merged stringtie_merged.gtf
+
+#  5678 reference transcripts loaded.
+  5735 query transfrags loaded. to the command above
+
+# View success of comparison
+  cat merged.stats
+
+# Estimate abundance and create Ballgown folder (for use in visualization). You will need to do this for each file. Here is the specific command I used for the plank01 file
+
+stringtie -e -B -p 8 -G stringtie_merged.gtf -o ballgown/plank01/plank01.gtf plank01.sorted.bam
+
+stringtie -e -B -p 8 -G stringtie_merged.gtf -o ballgown/plank02/plank02.gtf plank02.sorted.bam
+
+stringtie -e -B -p 8 -G stringtie_merged.gtf -o ballgown/biofilm01/biofilm01.gtf biofilm01.sorted.bam
+
+stringtie -e -B -p 8 -G stringtie_merged.gtf -o ballgown/biofilm02/biofilm02.gtf biofilm02.sorted.bam
+
+
+

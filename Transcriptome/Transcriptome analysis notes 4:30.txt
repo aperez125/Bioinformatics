@@ -1,0 +1,31 @@
+Transcription analysis 
+
+What genes are turn on?
+Collection of RNA, what genes are actually helpful and what conditions do they use? 
+Scientist used to use a microarray v RNA-sequence 
+
+Which genes are correlated with out conditions and which are not? Microarray gives you a smaller amount of genes 
+Some difficulties with tis 
+
+RNA sequences with alumina machine 
+cDNA; directly sequence rRNA 
+
+-Strand-specific RNA - helps you identify where the RNA comes from 
+Best way to identify noncoding or antisense RNA (these will come out in the wrong direction but it's not technically transcribed) 
+Can be technically challenging and time consuming 
+
+Most common way: dUTP
+Polimarized will incorporate the U. Degrade anything with the U in it
+
+Single-cell-RNA-Seq (scRNA-Seq)
+
+5 steps to analysis of RNA-SEQ DATA
+1. Preprocessing - remove low quality reads (trim and truncation), remove adapters and codes 
+2. Read alignment - able to do this in a different couple ways. "Unspoiled - if whole sequence genome is unavailable - couple different programs to do this" or spliced where using a whole genome as difference. Allows identification of novel transcripts. Different programs you can use - WILL BE USING ? 
+3. Transcriptome reconstruction - continuing to use the genome and overlapping transcription genes. Hard for eukaryotes because it's complicated so most people don't do it! Will be using StringTie  
+4. Expression quantification - normalize for gene length and sequencing depth. Gene-level quantification; does not take into account splice variants . Using Stringtie (FPKM - giving you a estimate abundance b/c its normalized and can directly compare the numbers) 
+5. Differential expression analysis - generate figures etc, and able to compare relative abundance of transcripts in different samples. Ex. Compare cancer to non-cancer 
+
+Visualize differential expresión using Ballgown; compare expression v values and identify mostly significant differential expressed genes 
+
+DenoVO putting the puzzle together 
