@@ -1,0 +1,10 @@
+sample-id	treatment	patient
+#q2:types	categorical	categorical
+SRR28476404	pre	one
+SRR28476403	post	one
+SRR28476402	pre	two
+SRR28476401	post	two
+SRR28476400	pre	three
+SRR28476399	post	three
+SRR28476398	pre	four
+SRR28476397	post	four

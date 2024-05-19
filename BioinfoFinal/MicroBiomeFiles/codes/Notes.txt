@@ -1,0 +1,15 @@
+# here is the link to the information about your files
+https://www.ncbi.nlm.nih.gov/sra?linkname=bioproject_sra_all&from_uid=1092691
+
+# continue the metadata file with info from the link above
+# able to look at individual patient AND pre and post 
+# Use the included python script to make a manifest file for your sequences
+python manifest.py
+
+# create your demux file
+qiime tools import \
+  --type 'SampleData[PairedEndSequencesWithQuality]' \
+  --input-path sequences \
+  --input-format CasavaOneEightSingleLanePerSampleDirFmt \
+  --output-path demux.qza
+
